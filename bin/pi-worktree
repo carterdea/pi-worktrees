@@ -1,28 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-self_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-
-find_real_pi() {
-  local clean_path="" dir
-  IFS=':' read -r -a path_parts <<< "${PATH:-}"
-  for dir in "${path_parts[@]}"; do
-    [[ -z "$dir" ]] && dir="."
-    [[ "$(cd -- "$dir" 2>/dev/null && pwd -P || true)" == "$self_dir" ]] && continue
-    if [[ -x "$dir/pi" ]]; then
-      printf '%s\n' "$dir/pi"
-      return 0
-    fi
-    if [[ -z "$clean_path" ]]; then
-      clean_path="$dir"
-    else
-      clean_path="$clean_path:$dir"
-    fi
-  done
-
-  PATH="$clean_path" command -v pi
-}
-
 slugify() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
@@ -62,7 +40,10 @@ pick_worktree_name() {
 run_pi_worktree() {
   local real_pi repo_root repo_name current_ref base name worktree_root worktree_path branch_name exit_code cleanup
 
-  real_pi="$(find_real_pi)"
+  if ! real_pi="$(command -v pi)"; then
+    printf 'pi -w: could not find pi on PATH\n' >&2
+    return 1
+  fi
 
   if ! repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     printf 'pi -w: not inside a git repository\n' >&2

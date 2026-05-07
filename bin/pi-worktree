@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+self_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+find_real_pi() {
+  local clean_path="" dir
+  IFS=':' read -r -a path_parts <<< "${PATH:-}"
+  for dir in "${path_parts[@]}"; do
+    [[ -z "$dir" ]] && dir="."
+    [[ "$(cd -- "$dir" 2>/dev/null && pwd -P || true)" == "$self_dir" ]] && continue
+    if [[ -x "$dir/pi" ]]; then
+      printf '%s\n' "$dir/pi"
+      return 0
+    fi
+    if [[ -z "$clean_path" ]]; then
+      clean_path="$dir"
+    else
+      clean_path="$clean_path:$dir"
+    fi
+  done
+
+  PATH="$clean_path" command -v pi
+}
+
+slugify() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g'
+}
+
+random_name() {
+  local adjectives nouns
+  adjectives=(brave calm clever eager gentle happy lunar quiet rapid silver steady wild)
+  nouns=(badger brook comet falcon harbor otter river sparrow valley willow)
+  printf '%s-%s' "${adjectives[$((RANDOM % ${#adjectives[@]}))]}" "${nouns[$((RANDOM % ${#nouns[@]}))]}"
+}
+
+name_available() {
+  local repo_root="$1" worktree_path="$2" branch_name="$3"
+  [[ ! -e "$worktree_path" ]] && ! git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch_name"
+}
+
+pick_worktree_name() {
+  local repo_root="$1" worktree_root="$2" base="$3" candidate branch_name worktree_path attempt
+
+  candidate="$base"
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    branch_name="pi/$candidate"
+    worktree_path="$worktree_root/$candidate"
+    if name_available "$repo_root" "$worktree_path" "$branch_name"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    candidate="$base-$(random_name)"
+  done
+
+  printf 'pi -w: could not find an available worktree name for %s\n' "$base" >&2
+  return 1
+}
+
+run_pi_worktree() {
+  local real_pi repo_root repo_name current_ref base name worktree_root worktree_path branch_name exit_code cleanup
+
+  real_pi="$(find_real_pi)"
+
+  if ! repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    printf 'pi -w: not inside a git repository\n' >&2
+    return 1
+  fi
+
+  repo_name="$(basename "$repo_root")"
+  current_ref="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
+  if [[ -n "$current_ref" ]]; then
+    base="$(slugify "$current_ref")"
+  else
+    base="$(random_name)"
+  fi
+  [[ -z "$base" ]] && base="$(random_name)"
+
+  worktree_root="${PI_WORKTREE_ROOT:-$(dirname "$repo_root")/.pi-worktrees/$repo_name}"
+  mkdir -p "$worktree_root"
+
+  name="$(pick_worktree_name "$repo_root" "$worktree_root" "$base")"
+  worktree_path="$worktree_root/$name"
+  branch_name="pi/$name"
+
+  printf 'Creating Pi worktree:\n  branch:   %s\n  worktree: %s\n\n' "$branch_name" "$worktree_path"
+  git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" HEAD
+
+  set +e
+  (cd "$worktree_path" && "$real_pi" "$@")
+  exit_code=$?
+  set -e
+
+  cleanup="${PI_WORKTREE_CLEANUP:-prompt}"
+  case "$cleanup" in
+    keep)
+      printf '\nKeeping worktree: %s\n' "$worktree_path"
+      ;;
+    remove)
+      remove_worktree "$repo_root" "$worktree_path"
+      ;;
+    prompt|*)
+      if [[ -t 0 && -t 1 ]]; then
+        prompt_cleanup "$repo_root" "$worktree_path"
+      else
+        printf '\nNon-interactive shell; keeping worktree: %s\n' "$worktree_path"
+      fi
+      ;;
+  esac
+
+  return "$exit_code"
+}
+
+prompt_cleanup() {
+  local repo_root="$1" worktree_path="$2" answer
+
+  printf '\nPi exited. Remove worktree?\n  %s\n[y/N] ' "$worktree_path"
+  read -r answer || answer=""
+
+  case "$answer" in
+    y|Y|yes|YES)
+      remove_worktree "$repo_root" "$worktree_path"
+      ;;
+    *)
+      printf 'Keeping worktree: %s\n' "$worktree_path"
+      ;;
+  esac
+}
+
+remove_worktree() {
+  local repo_root="$1" worktree_path="$2" answer
+
+  if git -C "$repo_root" worktree remove "$worktree_path"; then
+    printf 'Removed worktree: %s\n' "$worktree_path"
+    return 0
+  fi
+
+  if [[ -t 0 && -t 1 ]]; then
+    printf '\nWorktree has changes or could not be removed. Force remove?\n  %s\n[y/N] ' "$worktree_path"
+    read -r answer || answer=""
+    case "$answer" in
+      y|Y|yes|YES)
+        git -C "$repo_root" worktree remove --force "$worktree_path"
+        printf 'Force removed worktree: %s\n' "$worktree_path"
+        ;;
+      *)
+        printf 'Keeping worktree: %s\n' "$worktree_path"
+        ;;
+    esac
+  else
+    printf 'Keeping worktree: %s\n' "$worktree_path"
+  fi
+}
+
+run_pi_worktree "$@"

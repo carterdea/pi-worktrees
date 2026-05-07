@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+test_tmp=""
+
+cleanup() {
+  [[ -z "$test_tmp" ]] || rm -rf "$test_tmp"
+}
 
 assert_eq() {
   local expected="$1" actual="$2" message="$3"
@@ -22,7 +27,7 @@ assert_match() {
 make_fake_pi() {
   local bin_dir="$1"
   mkdir -p "$bin_dir"
-  cat > "$bin_dir/pi" <<'FAKE_PI'
+  cat >"$bin_dir/pi" <<'FAKE_PI'
 #!/usr/bin/env bash
 printf 'FAKE_PI_CWD=%s\n' "$PWD"
 printf 'FAKE_PI_ARGS=%s\n' "$*"
@@ -36,7 +41,7 @@ make_repo() {
   git -C "$dir" init -q
   git -C "$dir" config user.email test@example.com
   git -C "$dir" config user.name 'Test User'
-  printf 'hello\n' > "$dir/file.txt"
+  printf 'hello\n' >"$dir/file.txt"
   git -C "$dir" add file.txt
   git -C "$dir" commit -q -m init
   git -C "$dir" switch -q -c "$branch"
@@ -54,12 +59,12 @@ extract_value() {
 }
 
 main() {
-  local tmp repo fake_bin output worktree_path args_line base
-  tmp="$(mktemp -d)"
-  trap "rm -rf '$tmp'" EXIT
+  local repo fake_bin output worktree_path args_line base
+  test_tmp="$(mktemp -d)"
+  trap cleanup EXIT
 
-  fake_bin="$tmp/bin"
-  repo="$tmp/repo"
+  fake_bin="$test_tmp/bin"
+  repo="$test_tmp/repo"
   make_fake_pi "$fake_bin"
   make_repo "$repo" feature/test-wrapper
 
@@ -75,7 +80,10 @@ main() {
   args_line="$(extract_value FAKE_PI_ARGS "$output")"
   assert_eq 'feature-test-wrapper' "$(basename "$worktree_path")" 'branch worktree uses clean branch slug'
   assert_eq '--foo bar baz' "$args_line" 'pi args are forwarded into the worktree'
-  [[ ! -e "$worktree_path" ]] || { printf 'FAIL: worktree was not removed: %s\n' "$worktree_path" >&2; exit 1; }
+  [[ ! -e "$worktree_path" ]] || {
+    printf 'FAIL: worktree was not removed: %s\n' "$worktree_path" >&2
+    exit 1
+  }
 
   output="$(run_with_fake_pi "$repo" pi -w)"
   printf '%s\n' "$output"
@@ -91,7 +99,7 @@ main() {
   assert_match "$base" '^[a-z]+-[a-z]+$' 'detached HEAD uses random name'
 
   set +e
-  output="$(run_with_fake_pi "$tmp" pi -w)"
+  output="$(run_with_fake_pi "$test_tmp" pi -w)"
   status=$?
   set -e
   assert_eq '1' "$status" 'outside git repo exits with failure'

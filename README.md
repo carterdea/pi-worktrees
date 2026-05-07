@@ -64,6 +64,14 @@ Default worktree root:
 ../.pi-worktrees/<repo>
 ```
 
+## Check
+
+```bash
+./check.sh
+```
+
+Runs shell syntax checks, `shfmt`, `shellcheck`, and tests.
+
 ## Test
 
 ```bash

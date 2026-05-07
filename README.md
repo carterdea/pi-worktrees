@@ -63,3 +63,9 @@ Default worktree root:
 ```text
 ../.pi-worktrees/<repo>
 ```
+
+## Test
+
+```bash
+./test.sh
+```

@@ -52,7 +52,7 @@ run_pi_worktree() {
 
   repo_name="$(basename "$repo_root")"
   current_ref="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
-  if [[ -n "$current_ref" ]]; then
+  if [[ -n "$current_ref" && "$current_ref" != "main" ]]; then
     base="$(slugify "$current_ref")"
   else
     base="$(random_name)"

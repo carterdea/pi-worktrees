@@ -91,6 +91,13 @@ main() {
   base="$(basename "$worktree_path")"
   assert_match "$base" '^feature-test-wrapper-[a-z]+-[a-z]+$' 'collision adds random suffix'
 
+  git -C "$repo" switch -q -c main
+  output="$(run_with_fake_pi "$repo" pi -w)"
+  printf '%s\n' "$output"
+  worktree_path="$(extract_value FAKE_PI_CWD "$output")"
+  base="$(basename "$worktree_path")"
+  assert_match "$base" '^[a-z]+-[a-z]+$' 'main branch uses random name'
+
   git -C "$repo" checkout -q --detach HEAD
   output="$(run_with_fake_pi "$repo" pi -w)"
   printf '%s\n' "$output"

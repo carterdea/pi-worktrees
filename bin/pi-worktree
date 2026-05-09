@@ -95,19 +95,74 @@ run_pi_worktree() {
 }
 
 prompt_cleanup() {
-  local repo_root="$1" worktree_path="$2" answer
+  local repo_root="$1" worktree_path="$2" action
 
-  printf '\nPi exited. Remove worktree?\n  %s\n[y/N] ' "$worktree_path"
-  read -r answer || answer=""
-
-  case "$answer" in
-  y | Y | yes | YES)
+  action="$(select_cleanup_action "Pi exited. What should happen to this worktree?" "$worktree_path")"
+  case "$action" in
+  remove)
     remove_worktree "$repo_root" "$worktree_path"
     ;;
-  *)
+  keep | *)
     printf 'Keeping worktree: %s\n' "$worktree_path"
     ;;
   esac
+}
+
+select_cleanup_action() {
+  local title="$1" worktree_path="$2" selected=0 key rest
+
+  while true; do
+    printf '\n%s\n  %s\n\n' "$title" "$worktree_path" >/dev/tty
+    render_cleanup_choice 0 "$selected" "Remove worktree"
+    render_cleanup_choice 1 "$selected" "Keep worktree"
+
+    IFS= read -rsn1 key </dev/tty || {
+      printf '\n' >/dev/tty
+      printf 'keep\n'
+      return 0
+    }
+
+    case "$key" in
+    "")
+      printf '\n' >/dev/tty
+      if [[ "$selected" -eq 0 ]]; then
+        printf 'remove\n'
+      else
+        printf 'keep\n'
+      fi
+      return 0
+      ;;
+    $'\003')
+      printf '\n' >/dev/tty
+      printf 'keep\n'
+      return 0
+      ;;
+    j)
+      selected=1
+      ;;
+    k)
+      selected=0
+      ;;
+    $'\033')
+      IFS= read -rsn2 -t 0.1 rest </dev/tty || rest=""
+      case "$rest" in
+      "[A") selected=0 ;;
+      "[B") selected=1 ;;
+      esac
+      ;;
+    esac
+
+    printf '\033[5A\033[J' >/dev/tty
+  done
+}
+
+render_cleanup_choice() {
+  local index="$1" selected="$2" label="$3"
+  if [[ "$index" -eq "$selected" ]]; then
+    printf '  ▸ %s\n' "$label" >/dev/tty
+  else
+    printf '    %s\n' "$label" >/dev/tty
+  fi
 }
 
 remove_worktree() {

@@ -92,6 +92,24 @@ main() {
     exit 1
   }
 
+  output="$(git -C "$repo" worktree add -b pi/prompt-keep "$test_tmp/prompt-keep" HEAD >/dev/null && bash -c 'source "$1"; prompt_cleanup "$2" "$3"' bash "$repo_dir/bin/pi-worktree" "$repo" "$test_tmp/prompt-keep" <<<'n')"
+  printf '%s\n' "$output"
+  assert_match "$output" 'Remove this worktree\?' 'cleanup prompt uses y/N wording'
+  assert_match "$output" 'Keeping worktree:' 'n keeps prompted worktree'
+  [[ -e "$test_tmp/prompt-keep" ]] || {
+    printf 'FAIL: prompt n removed worktree\n' >&2
+    exit 1
+  }
+  git -C "$repo" worktree remove --force "$test_tmp/prompt-keep" >/dev/null
+
+  output="$(git -C "$repo" worktree add -b pi/prompt-remove "$test_tmp/prompt-remove" HEAD >/dev/null && bash -c 'source "$1"; prompt_cleanup "$2" "$3"' bash "$repo_dir/bin/pi-worktree" "$repo" "$test_tmp/prompt-remove" <<<'y')"
+  printf '%s\n' "$output"
+  assert_match "$output" 'Removed worktree:' 'y removes prompted worktree'
+  [[ ! -e "$test_tmp/prompt-remove" ]] || {
+    printf 'FAIL: prompt y kept worktree\n' >&2
+    exit 1
+  }
+
   output="$(run_with_fake_pi "$repo" pi -w)"
   printf '%s\n' "$output"
   worktree_path="$(extract_value FAKE_PI_CWD "$output")"

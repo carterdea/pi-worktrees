@@ -27,7 +27,7 @@ pi -w branch-name
 pi -w branch-name -p "fix the bug"
 ```
 
-`pi -w` creates a git worktree, starts real Pi inside it, then shows a cleanup picker when Pi exits. Use arrow keys or `j`/`k`, then Enter.
+`pi -w` creates a git worktree, starts real Pi inside it, then asks whether to remove the worktree when Pi exits. Answer `y`/`yes` to remove it; anything else keeps it.
 
 ## Naming
 

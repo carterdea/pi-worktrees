@@ -74,12 +74,19 @@ main() {
   output="$(PATH="$repo_dir/bin:$fake_bin:$PATH" pi --version)"
   assert_match "$output" '^FAKE_PI_CWD=' 'normal pi calls are delegated'
 
-  output="$(run_with_fake_pi "$repo" pi -w --foo 'bar baz')"
+  output="$(run_with_fake_pi "$repo" pi -w -p 'bar baz')"
   printf '%s\n' "$output"
   worktree_path="$(extract_value FAKE_PI_CWD "$output")"
   args_line="$(extract_value FAKE_PI_ARGS "$output")"
-  assert_eq 'feature-test-wrapper' "$(basename "$worktree_path")" 'branch worktree uses clean branch slug'
-  assert_eq '--foo bar baz' "$args_line" 'pi args are forwarded into the worktree'
+  assert_match "$(basename "$worktree_path")" '^[a-z]+-[a-z]+$' 'default worktree uses random name'
+  assert_eq '-p bar baz' "$args_line" 'pi prompt args are forwarded into the worktree'
+
+  output="$(run_with_fake_pi "$repo" pi -w named-worktree --foo 'bar baz')"
+  printf '%s\n' "$output"
+  worktree_path="$(extract_value FAKE_PI_CWD "$output")"
+  args_line="$(extract_value FAKE_PI_ARGS "$output")"
+  assert_eq 'named-worktree' "$(basename "$worktree_path")" 'explicit worktree name is used'
+  assert_eq '--foo bar baz' "$args_line" 'pi args after explicit name are forwarded'
   [[ ! -e "$worktree_path" ]] || {
     printf 'FAIL: worktree was not removed: %s\n' "$worktree_path" >&2
     exit 1
@@ -89,7 +96,7 @@ main() {
   printf '%s\n' "$output"
   worktree_path="$(extract_value FAKE_PI_CWD "$output")"
   base="$(basename "$worktree_path")"
-  assert_match "$base" '^feature-test-wrapper-[a-z]+-[a-z]+$' 'collision adds random suffix'
+  assert_match "$base" '^[a-z]+-[a-z]+$' 'second default worktree uses another random name'
 
   git -C "$repo" switch -q -c main
   output="$(run_with_fake_pi "$repo" pi -w)"

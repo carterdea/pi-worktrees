@@ -38,7 +38,7 @@ pick_worktree_name() {
 }
 
 run_pi_worktree() {
-  local real_pi repo_root repo_name current_ref base name worktree_root worktree_path branch_name exit_code cleanup
+  local real_pi repo_root repo_name base name worktree_root worktree_path branch_name exit_code cleanup
 
   if ! real_pi="$(command -v pi)"; then
     printf 'pi -w: could not find pi on PATH\n' >&2
@@ -51,9 +51,9 @@ run_pi_worktree() {
   fi
 
   repo_name="$(basename "$repo_root")"
-  current_ref="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
-  if [[ -n "$current_ref" && "$current_ref" != "main" ]]; then
-    base="$(slugify "$current_ref")"
+  if [[ $# -gt 0 && "${1:-}" != -* ]]; then
+    base="$(slugify "$1")"
+    shift
   else
     base="$(random_name)"
   fi

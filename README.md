@@ -22,32 +22,42 @@ source ~/.zshrc
 pi -w
 pi --worktree
 pi w
-pi -w "fix the bug"
+pi -w -p "fix the bug"
+pi -w branch-name
+pi -w branch-name -p "fix the bug"
 ```
 
 `pi -w` creates a git worktree, starts real Pi inside it, then asks whether to remove the worktree when Pi exits.
 
 ## Naming
 
-If you are on a branch, it uses the branch name:
-
-```text
-feature-paywall
-pi/feature-paywall
-```
-
-If that name is taken, it adds a random suffix:
-
-```text
-feature-paywall-quiet-river
-pi/feature-paywall-quiet-river
-```
-
-If you are detached, it uses a random Claude-style name:
+By default, it uses a random Claude-style name:
 
 ```text
 quiet-river
 pi/quiet-river
+```
+
+Pass a name immediately after `-w` to use that worktree and branch name:
+
+```text
+pi -w feature-paywall
+feature-paywall
+pi/feature-paywall
+```
+
+Arguments starting with `-` are forwarded to Pi, so prompts use normal Pi flags:
+
+```text
+pi -w -p "fix the bug"
+pi -w feature-paywall -p "fix the bug"
+```
+
+If the name is taken, it adds a random suffix:
+
+```text
+feature-paywall-quiet-river
+pi/feature-paywall-quiet-river
 ```
 
 ## Environment
